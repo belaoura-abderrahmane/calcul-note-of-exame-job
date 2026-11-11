@@ -35,6 +35,9 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->profile()
             ->brandName('حساب نقاط المسابقات')
+            ->brandLogo(asset('images/brand/lockup-horizontal.svg'))
+            ->darkModeBrandLogo(asset('images/brand/lockup-horizontal-white.svg'))
+            ->brandLogoHeight('2.6rem')
             ->favicon(asset('favicon.svg'))
             ->colors([
                 'primary' => Color::Emerald,

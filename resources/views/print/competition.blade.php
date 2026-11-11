@@ -40,6 +40,7 @@
 <body>
 <div class="toolbar"><button onclick="window.print()">🖨️ طباعة</button></div>
 <div class="sheet">
+    <img src="{{ asset('images/brand/symbol.svg') }}" alt="" style="float:left;width:56px;height:56px">
     <div class="rep">الجمهورية الجزائرية الديمقراطية الشعبية</div>
     <div class="top">
         <div>{{ $competition->institution ?: '................................' }}</div>
