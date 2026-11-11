@@ -19,6 +19,8 @@ class Candidate extends Model
         'specialty_match' => 'float',
         'average' => 'float',
         'interview' => 'float',
+        'training_points' => 'float',
+        'research_points' => 'float',
         'seniority_years_override' => 'float',
         'score_specialty' => 'float',
         'score_path' => 'float',
@@ -28,6 +30,7 @@ class Candidate extends Model
         'score_seniority' => 'float',
         'score_interview' => 'float',
         'total' => 'float',
+        'max_total' => 'float',
     ];
 
     protected static function booted(): void
@@ -47,15 +50,17 @@ class Candidate extends Model
 
     public function getPercentageAttribute(): float
     {
-        return round(($this->total / ScoreCalculator::MAX_TOTAL) * 100, 2);
+        return $this->max_total > 0 ? round(($this->total / $this->max_total) * 100, 2) : 0;
     }
 
     public function computeScores(): void
     {
-        $result = ScoreCalculator::make()->calculate([
+        $calculator = $this->competition?->calculator() ?? ScoreCalculator::make();
+
+        $result = $calculator->calculate([
             ...$this->only([
                 'specialty_match', 'average', 'master_mention', 'is_grande_ecole', 'is_major',
-                'trainings_count', 'research_count', 'experiences', 'seniority_years_override', 'interview',
+                'trainings_count', 'research_count', 'training_points', 'research_points', 'experiences', 'seniority_years_override', 'interview',
             ]),
             'diploma_date' => $this->diploma_date,
             'reference_date' => $this->competition?->reference_date ?? $this->competition?->exam_date,

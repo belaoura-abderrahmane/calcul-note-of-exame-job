@@ -29,7 +29,7 @@ class PanelPagesTest extends TestCase
         foreach ([
             '/admin', '/admin/competitions', '/admin/competitions/create', "/admin/competitions/{$competition->id}/edit",
             '/admin/candidates', '/admin/candidates/create', "/admin/candidates/{$candidate->id}/edit",
-            '/admin/quick-calculator', '/admin/scoring-settings', "/competitions/{$competition->id}/print",
+            '/admin/quick-calculator', '/admin/scoring-profiles', "/competitions/{$competition->id}/print",
         ] as $url) {
             $this->get($url)->assertOk();
         }
@@ -41,7 +41,7 @@ class PanelPagesTest extends TestCase
         $competition = Competition::first();
 
         $this->get("/competitions/{$competition->id}/print")
-            ->assertSeeInOrder(['بن علي', 'بوزيد', 'قاسمي', 'مرابط', 'حمدي']);
+            ->assertSeeInOrder(['بن علي', 'قاسمي', 'بوزيد', 'مرابط', 'حمدي']);
     }
 
     public function test_desktop_mode_logs_in_automatically(): void

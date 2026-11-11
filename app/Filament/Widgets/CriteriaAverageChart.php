@@ -14,10 +14,23 @@ class CriteriaAverageChart extends ChartWidget
 
     protected function getData(): array
     {
-        $maxima = ScoreCalculator::make()->maxima();
         $labels = ScoreCalculator::labels();
+        $calculators = [];
+        $sums = array_fill_keys(array_keys($labels), 0.0);
+        $counts = array_fill_keys(array_keys($labels), 0);
 
-        $values = collect($maxima)->map(fn ($max, $col) => $max > 0 ? round((float) Candidate::avg($col) / $max * 100, 1) : 0);
+        // كل مترشح يُقارن بالحد الأقصى في سلم مسابقته
+        Candidate::query()->with('competition.scoringProfile')->each(function (Candidate $candidate) use (&$calculators, &$sums, &$counts): void {
+            $maxima = ($calculators[$candidate->competition_id] ??= $candidate->competition?->calculator() ?? ScoreCalculator::make())->maxima();
+            foreach ($maxima as $col => $max) {
+                if ($max > 0) {
+                    $sums[$col] += $candidate->{$col} / $max * 100;
+                    $counts[$col]++;
+                }
+            }
+        });
+
+        $values = collect($sums)->map(fn (float $sum, string $col): float => $counts[$col] ? round($sum / $counts[$col], 1) : 0);
 
         return [
             'datasets' => [[

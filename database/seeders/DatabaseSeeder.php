@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Candidate;
 use App\Models\Competition;
-use App\Models\ScoringSetting;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -17,7 +16,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'المدير', 'password' => 'password'],
         );
 
-        ScoringSetting::updateOrCreate(['id' => 1], ['rules' => config('scoring')]);
+        // سلالم التنقيط تُنشأ تلقائياً في الترحيل (migration) من App\Support\ScoringPresets
 
         // في نسخة سطح المكتب نبدأ بقاعدة فارغة (بدون بيانات تجريبية)
         if (config('app.desktop') || Competition::exists()) {

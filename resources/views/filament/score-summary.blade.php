@@ -15,7 +15,7 @@
         <div class="score-card__title">النتيجة النهائية</div>
         <div class="score-card__total">
             <span class="score-card__value">{{ number_format($total, 2) }}</span>
-            <span class="score-card__max">/ 30</span>
+            <span class="score-card__max">/ {{ \App\Services\ScoreCalculator::format($result['max_total']) }}</span>
         </div>
         <div class="score-card__pct">
             <span>{{ number_format($pct, 2) }}%</span>
@@ -26,6 +26,7 @@
 
     <ul class="score-card__list">
         @foreach ($labels as $key => $label)
+            @continue(($maxima[$key] ?? 0) <= 0)
             @php $v = $result[$key]; $m = $maxima[$key] ?: 1; @endphp
             <li>
                 <div class="score-card__row">

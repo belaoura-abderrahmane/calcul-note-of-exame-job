@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\Candidates;
 
 use App\Filament\Forms\ScoringFields;
-use App\Filament\Resources\Candidates\Pages;
 use App\Models\Candidate;
 use App\Models\Competition;
+use App\Services\ScoreCalculator;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -20,6 +20,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -45,13 +46,31 @@ class CandidateResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'last_name';
 
+    /** @var array<int, Competition|null> */
+    private static array $competitions = [];
+
+    protected static function competition(mixed $id): ?Competition
+    {
+        if (! $id) {
+            return null;
+        }
+
+        return static::$competitions[(int) $id] ??= Competition::with('scoringProfile')->find($id);
+    }
+
     public static function referenceDate(): \Closure
     {
         return function (Get $get) {
-            $competition = once(fn () => Competition::find($get('competition_id')));
+            $competition = static::competition($get('competition_id'));
 
             return $competition?->reference_date ?? $competition?->exam_date;
         };
+    }
+
+    /** حاسبة سلم التنقيط الخاص بالمسابقة المختارة في الاستمارة */
+    public static function calculator(): \Closure
+    {
+        return fn (Get $get, string $up = ''): ScoreCalculator => static::competition($get($up.'competition_id'))?->calculator() ?? ScoreCalculator::make();
     }
 
     public static function form(Schema $schema): Schema
@@ -93,7 +112,7 @@ class CandidateResource extends Resource
                                     TextInput::make('university')->label('الجامعة / المؤسسة المانحة'),
                                 ]),
 
-                            ...ScoringFields::make(static::referenceDate()),
+                            ...ScoringFields::make(static::calculator(), static::referenceDate()),
 
                             Section::make('ملاحظات')
                                 ->collapsed()
@@ -103,7 +122,11 @@ class CandidateResource extends Resource
                     Group::make()
                         ->columnSpan(1)
                         ->extraAttributes(['class' => 'score-sticky'])
-                        ->schema([ScoringFields::summary(static::referenceDate())]),
+                        ->schema([
+                            ScoringFields::summary(static::calculator(), static::referenceDate()),
+                            View::make('filament.profile-card')
+                                ->viewData(fn (Get $get): array => ['profile' => static::competition($get('competition_id'))?->scoringProfile]),
+                        ]),
                 ]),
         ]);
     }
@@ -131,7 +154,9 @@ class CandidateResource extends Resource
                 ->addSelect(DB::raw(static::rankSql().' as rank_position')))
             ->columns([
                 TextColumn::make('rank_position')->label('الترتيب')->alignCenter()->badge()
-                    ->color(fn ($state) => match ((int) $state) { 1 => 'warning', 2, 3 => 'info', default => 'gray' })
+                    ->color(fn ($state) => match ((int) $state) {
+                        1 => 'warning', 2, 3 => 'info', default => 'gray'
+                    })
                     ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('total', $direction === 'asc' ? 'desc' : 'asc')),
                 TextColumn::make('last_name')->label('اللقب والاسم')
                     ->formatStateUsing(fn (Candidate $record) => $record->full_name)
@@ -148,10 +173,10 @@ class CandidateResource extends Resource
                 TextColumn::make('score_experience')->label('الخبرة')->alignCenter()->formatStateUsing($score)->toggleable(),
                 TextColumn::make('score_seniority')->label('الأقدمية')->alignCenter()->formatStateUsing($score)->toggleable(),
                 TextColumn::make('score_interview')->label('المقابلة')->alignCenter()->formatStateUsing($score)->toggleable(),
-                TextColumn::make('total')->label('المجموع / 30')->alignCenter()->sortable()
+                TextColumn::make('total')->label('المجموع')->alignCenter()->sortable()
                     ->badge()->size('lg')->weight('bold')
-                    ->formatStateUsing(fn ($state) => number_format($state, 2))
-                    ->color(fn ($state) => $state >= 20 ? 'success' : ($state >= 15 ? 'warning' : 'danger')),
+                    ->formatStateUsing(fn ($state, Candidate $record) => number_format($state, 2).' / '.ScoreCalculator::format($record->max_total))
+                    ->color(fn (Candidate $record) => $record->percentage >= 66 ? 'success' : ($record->percentage >= 50 ? 'warning' : 'danger')),
                 TextColumn::make('result')->label('النتيجة')->alignCenter()->badge()
                     ->state(function (Candidate $record) {
                         $p = $record->competition?->positions ?? 0;
@@ -162,7 +187,9 @@ class CandidateResource extends Resource
                             default => 'غير ناجح',
                         };
                     })
-                    ->color(fn ($state) => match ($state) { 'ناجح' => 'success', 'قائمة الانتظار' => 'warning', default => 'gray' }),
+                    ->color(fn ($state) => match ($state) {
+                        'ناجح' => 'success', 'قائمة الانتظار' => 'warning', default => 'gray'
+                    }),
             ])
             ->defaultSort(fn (Builder $query) => $query->orderByDesc('total')->orderByRaw("COALESCE(birth_date, '9999-12-31') asc")->orderBy('id'))
             ->filters([

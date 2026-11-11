@@ -37,3 +37,27 @@
 .app-footer { text-align: center; font-size: .8rem; color: rgb(100 116 139); padding: 1rem 0 1.5rem; }
 
 @media (max-width: 1279px) { .score-sticky { position: static; } }
+
+/* ===== شرح المعيار (النص القانوني) ===== */
+.criterion-help {
+    display: flex; gap: .6rem; align-items: flex-start;
+    padding: .7rem .85rem; margin-bottom: .25rem;
+    border-radius: .6rem; font-size: .85rem; line-height: 1.75;
+    background: rgba(16, 185, 129, .07); color: rgb(51 65 85);
+    border: 1px solid rgba(16, 185, 129, .25);
+}
+.dark .criterion-help { color: rgb(212 212 216); background: rgba(16, 185, 129, .1); }
+.criterion-help svg { width: 1.15rem; height: 1.15rem; flex: none; margin-top: .2rem; color: var(--primary-600); }
+.criterion-help p { margin: 0; white-space: pre-line; }
+
+/* ===== بطاقة السلم القانوني ===== */
+.profile-card { border-radius: .75rem; padding: 1rem 1.15rem; background: rgba(14,165,233,.06); border: 1px solid rgba(14,165,233,.25); font-size: .88rem; line-height: 1.8; }
+.dark .profile-card { background: rgba(14,165,233,.1); }
+.profile-card h4 { margin: 0 0 .35rem; font-weight: 700; font-size: .95rem; }
+.profile-card .ref { white-space: pre-line; color: rgb(71 85 105); }
+.dark .profile-card .ref { color: rgb(161 161 170); }
+.profile-card .desc { white-space: pre-line; margin-top: .5rem; }
+.profile-card .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .6rem; }
+.profile-card .chip { padding: .1rem .55rem; border-radius: 999px; background: rgba(15,23,42,.06); font-size: .78rem; }
+.dark .profile-card .chip { background: rgba(255,255,255,.08); }
+.profile-card .chip b { color: var(--primary-600); }

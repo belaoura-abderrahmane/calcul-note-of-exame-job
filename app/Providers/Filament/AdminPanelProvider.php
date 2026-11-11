@@ -2,12 +2,13 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\AvatarProviders\LocalAvatarProvider;
 use App\Http\Middleware\DesktopAutoLogin;
+use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\FontProviders\LocalFontProvider;
 use Filament\Navigation\NavigationGroup;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
@@ -45,7 +46,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             // خط Cairo محلي (يعمل دون إنترنت)
             ->font('Cairo', url: asset('fonts/cairo/cairo.css'), provider: LocalFontProvider::class)
-            ->defaultAvatarProvider(\App\Filament\AvatarProviders\LocalAvatarProvider::class)
+            ->defaultAvatarProvider(LocalAvatarProvider::class)
             ->sidebarCollapsibleOnDesktop()
             ->maxContentWidth(Width::Full)
             ->databaseNotifications(false)
@@ -53,7 +54,7 @@ class AdminPanelProvider extends PanelProvider
                 NavigationGroup::make('إدارة المسابقات')->icon(Heroicon::OutlinedFolder),
                 NavigationGroup::make('الأدوات')->icon(Heroicon::OutlinedWrenchScrewdriver),
             ])
-            ->renderHook(PanelsRenderHook::HEAD_END, fn () => '<link rel="stylesheet" href="'.asset('css/scoring.css').'?v=1">')
+            ->renderHook(PanelsRenderHook::HEAD_END, fn () => '<link rel="stylesheet" href="'.asset('css/scoring.css').'?v=2">')
             ->renderHook(PanelsRenderHook::FOOTER, fn () => view('filament.footer'))
             // نبض دوري يخبر برنامج سطح المكتب أن النافذة ما زالت مفتوحة
             ->renderHook(PanelsRenderHook::BODY_END, fn () => config('app.desktop')

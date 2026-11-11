@@ -3,17 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\Competition;
-use App\Services\ScoreCalculator;
 
 class PrintController extends Controller
 {
     public function competition(Competition $competition)
     {
+        $calculator = $competition->calculator();
+
         return view('print.competition', [
             'competition' => $competition,
             'candidates' => $competition->rankedCandidates(),
-            'labels' => ScoreCalculator::labels(),
-            'maxima' => ScoreCalculator::make()->maxima(),
+            'labels' => collect($calculator->criterionLabels())->filter(fn (string $label, string $key): bool => $calculator->maxima()[$key] > 0)->all(),
+            'maxima' => $calculator->maxima(),
+            'maxTotal' => $calculator->maxTotal(),
         ]);
     }
 }

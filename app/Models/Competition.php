@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use App\Services\ScoreCalculator;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Competition extends Model
 {
     protected $fillable = [
-        'title', 'institution', 'grade', 'required_diploma', 'required_specialty',
+        'scoring_profile_id', 'title', 'institution', 'grade', 'required_diploma', 'required_specialty',
         'positions', 'reference_date', 'exam_date', 'status', 'notes',
     ];
 
@@ -22,6 +24,29 @@ class Competition extends Model
         'open' => 'مفتوحة',
         'closed' => 'مغلقة',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Competition $competition): void {
+            $competition->scoring_profile_id ??= ScoringProfile::default()?->getKey();
+        });
+    }
+
+    public function scoringProfile(): BelongsTo
+    {
+        return $this->belongsTo(ScoringProfile::class);
+    }
+
+    /** @return array<string, mixed> قواعد سلم التنقيط الخاص بهذه المسابقة */
+    public function scoringRules(): array
+    {
+        return $this->scoringProfile?->fullRules() ?? ScoringProfile::defaultRules();
+    }
+
+    public function calculator(): ScoreCalculator
+    {
+        return ScoreCalculator::make($this->scoringRules());
+    }
 
     public function candidates(): HasMany
     {

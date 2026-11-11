@@ -2,20 +2,22 @@
 
 namespace App\Services;
 
-use App\Models\ScoringSetting;
+use App\Models\ScoringProfile;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 
 /**
- * محرك حساب نقاط مسابقة التوظيف على أساس الشهادة (من 30 نقطة).
+ * محرك حساب نقاط مسابقات التوظيف على أساس الشهادة.
+ * المجموع الأقصى = مجموع الحدود القصوى للمعايير في سلم التنقيط المختار (30 للسلم العام، 33 لسلم الأساتذة...).
  */
 class ScoreCalculator
 {
-    public const MAX_TOTAL = 30;
-
+    /**
+     * @param  array<string, mixed>|null  $rules  قواعد سلم التنقيط (null = السلم الافتراضي)
+     */
     public function __construct(protected ?array $rules = null)
     {
-        $this->rules ??= ScoringSetting::rules();
+        $this->rules = $this->rules === null ? ScoringProfile::defaultRules() : ScoringProfile::completeRules($this->rules);
     }
 
     public static function make(?array $rules = null): static
@@ -43,8 +45,8 @@ class ScoreCalculator
                 (bool) ($input['is_grande_ecole'] ?? false),
                 (bool) ($input['is_major'] ?? false),
             ),
-            'score_training' => $this->perItem('training', $input['trainings_count'] ?? 0),
-            'score_research' => $this->perItem('research', $input['research_count'] ?? 0),
+            'score_training' => $this->countOrManual('training', $input['trainings_count'] ?? 0, $input['training_points'] ?? null),
+            'score_research' => $this->countOrManual('research', $input['research_count'] ?? 0, $input['research_points'] ?? null),
             'score_experience' => $this->experience($input['experiences'] ?? []),
             'score_seniority' => $this->seniority(
                 $input['diploma_date'] ?? null,
@@ -55,10 +57,12 @@ class ScoreCalculator
         ];
 
         $total = round(array_sum($scores), 2);
+        $maxTotal = $this->maxTotal();
 
         return $scores + [
             'total' => $total,
-            'percentage' => round($total / self::MAX_TOTAL * 100, 2),
+            'max_total' => $maxTotal,
+            'percentage' => $maxTotal > 0 ? round($total / $maxTotal * 100, 2) : 0,
         ];
     }
 
@@ -97,16 +101,36 @@ class ScoreCalculator
         return (float) ($row['bonus'] ?? 0);
     }
 
+    /**
+     * المسار الدراسي: نقاط المعدل + علاوة التقدير (+ علاوات المدرسة العليا والأول على الدفعة).
+     * إذا كانت bonus_outside_cap مفعلة (سلم الأساتذة) تُضاف العلاوتان الأخيرتان خارج سقف المعيار.
+     */
     public function path(mixed $average, ?string $mention, bool $grandeEcole, bool $major): float
     {
         $p = $this->rules['path'];
+        $extra = ($grandeEcole ? (float) $p['grande_ecole_bonus'] : 0) + ($major ? (float) $p['major_bonus'] : 0);
+        $base = $this->averagePoints($average) + $this->mentionBonus($mention);
 
-        $points = $this->averagePoints($average)
-            + $this->mentionBonus($mention)
-            + ($grandeEcole ? (float) $p['grande_ecole_bonus'] : 0)
-            + ($major ? (float) $p['major_bonus'] : 0);
+        if (! empty($p['bonus_outside_cap'])) {
+            return round($this->clamp($base, $p['max']) + max(0, $extra), 2);
+        }
 
-        return $this->clamp($points, $p['max']);
+        return $this->clamp($base + $extra, $p['max']);
+    }
+
+    /** التكوين أو الأشغال: بالعدد × النقاط لكل وحدة، أو نقاط تُدخل يدوياً (mode = manual) */
+    public function countOrManual(string $criterion, mixed $count, mixed $manualPoints): float
+    {
+        if (($this->rules[$criterion]['mode'] ?? 'count') === 'manual') {
+            return $this->clamp($manualPoints ?? 0, $this->rules[$criterion]['max']);
+        }
+
+        return $this->perItem($criterion, $count);
+    }
+
+    public function isManual(string $criterion): bool
+    {
+        return ($this->rules[$criterion]['mode'] ?? 'count') === 'manual';
     }
 
     public function perItem(string $criterion, mixed $count): float
@@ -116,7 +140,7 @@ class ScoreCalculator
         return $this->clamp(max(0, (int) $count) * (float) $r['per_item'], $r['max']);
     }
 
-    /** نقاط كل سطر خبرة */
+    /** نقاط سطر خبرة واحد، في حدود سقف نوعه ثم سقف المعيار */
     public function experienceLine(?string $type, mixed $years, mixed $months = 0): float
     {
         $r = $this->rules['experience'];
@@ -131,23 +155,41 @@ class ScoreCalculator
             $duration += max(0, min(11, (int) $months)) / 12;
         }
 
-        return $this->clamp($duration * (float) $row['per_year'], $r['max']);
+        $typeMax = (isset($row['max']) && $row['max'] !== '' && $row['max'] !== null) ? (float) $row['max'] : (float) $r['max'];
+
+        return $this->clamp($duration * (float) $row['per_year'], min($typeMax, (float) $r['max']));
     }
 
-    /** الخبرات لا تُجمع: يُعتمد السطر الذي يمنح أكبر عدد من النقاط */
+    /**
+     * نقاط الخبرة المهنية.
+     * combine = best: الأنواع لا تُجمع، يُعتمد النوع الأكثر نقاطاً (القاعدة العامة).
+     * combine = sum: تُجمع نقاط كل الأنواع في حدود سقف المعيار.
+     *
+     * @param  array<int, array{type?: string, years?: mixed, months?: mixed}>|null  $experiences
+     */
     public function experience(?array $experiences): float
     {
-        $best = 0;
+        $perType = [];
 
         foreach ($experiences ?? [] as $line) {
-            $best = max($best, $this->experienceLine(
-                $line['type'] ?? null,
-                $line['years'] ?? 0,
-                $line['months'] ?? 0,
-            ));
+            $type = $line['type'] ?? null;
+            if (! $type) {
+                continue;
+            }
+            // عدة أسطر من نفس النوع تُجمع مدتها أولاً
+            $perType[$type]['years'] = ($perType[$type]['years'] ?? 0) + max(0, (float) ($line['years'] ?? 0));
+            $perType[$type]['months'] = ($perType[$type]['months'] ?? 0) + max(0, min(11, (int) ($line['months'] ?? 0)));
         }
 
-        return round($best, 2);
+        $points = collect($perType)->map(function (array $d, string $type): float {
+            $years = $d['years'] + intdiv($d['months'], 12);
+
+            return $this->experienceLine($type, $years, $d['months'] % 12);
+        });
+
+        $result = ($this->rules['experience']['combine'] ?? 'best') === 'sum' ? $points->sum() : (float) $points->max();
+
+        return $this->clamp($result, $this->rules['experience']['max']);
     }
 
     /** عدد السنوات الكاملة بين تاريخ الشهادة والتاريخ المرجعي */
@@ -178,6 +220,37 @@ class ScoreCalculator
 
     // ---------------------------------------------------------------
 
+    public function maxTotal(): float
+    {
+        return round(array_sum($this->maxima()), 2);
+    }
+
+    /** @return array<string, string> مستويات مطابقة التخصص (النقاط => الوصف) */
+    public function specialtyLevelOptions(): array
+    {
+        return collect($this->rules['specialty']['levels'] ?? [])
+            ->filter(fn ($level): bool => filled($level['label'] ?? null))
+            ->mapWithKeys(fn (array $level): array => [
+                (string) (float) $level['points'] => $level['label'].' ('.static::format((float) $level['points']).')',
+            ])
+            ->all();
+    }
+
+    public function help(string $criterion): ?string
+    {
+        return $this->rules[$criterion]['help'] ?? null;
+    }
+
+    public function unitLabel(string $criterion, string $fallback): string
+    {
+        return filled($this->rules[$criterion]['unit_label'] ?? null) ? $this->rules[$criterion]['unit_label'] : $fallback;
+    }
+
+    public static function format(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 2), '0'), '.') ?: '0';
+    }
+
     public function mentionOptions(): array
     {
         return collect($this->rules['path']['mentions'])->pluck('label', 'key')->all();
@@ -193,7 +266,9 @@ class ScoreCalculator
     {
         return [
             'score_specialty' => (float) $this->rules['specialty']['max'],
-            'score_path' => (float) $this->rules['path']['max'],
+            'score_path' => (float) $this->rules['path']['max'] + (! empty($this->rules['path']['bonus_outside_cap'])
+                ? (float) $this->rules['path']['grande_ecole_bonus'] + (float) $this->rules['path']['major_bonus']
+                : 0),
             'score_training' => (float) $this->rules['training']['max'],
             'score_research' => (float) $this->rules['research']['max'],
             'score_experience' => (float) $this->rules['experience']['max'],
@@ -202,6 +277,22 @@ class ScoreCalculator
         ];
     }
 
+    /**
+     * أسماء المعايير في هذا السلم (يمكن للسلم أن يعيد تسمية معيار، مثل "المنشورات العلمية").
+     *
+     * @return array<string, string>
+     */
+    public function criterionLabels(): array
+    {
+        $map = ['score_specialty' => 'specialty', 'score_path' => 'path', 'score_training' => 'training', 'score_research' => 'research',
+            'score_experience' => 'experience', 'score_seniority' => 'seniority', 'score_interview' => 'interview'];
+
+        return collect(static::labels())
+            ->map(fn (string $label, string $key): string => filled($this->rules[$map[$key]]['label'] ?? null) ? $this->rules[$map[$key]]['label'] : $label)
+            ->all();
+    }
+
+    /** @return array<string, string> */
     public static function labels(): array
     {
         return [

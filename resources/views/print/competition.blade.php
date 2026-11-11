@@ -50,6 +50,7 @@
     <div class="sub">
         {{ $competition->title }} — الرتبة: <b>{{ $competition->grade }}</b>
         — عدد المناصب: <b>{{ $competition->positions }}</b>
+        @if ($competition->scoringProfile) <br>سلم التنقيط: <b>{{ $competition->scoringProfile->name }}</b> @endif
         @if ($competition->exam_date) — تاريخ المسابقة: <b>{{ $competition->exam_date->format('d/m/Y') }}</b> @endif
     </div>
 
@@ -63,7 +64,7 @@
             @foreach ($labels as $key => $label)
                 <th>{{ $label }}<small>/ {{ $fmt($maxima[$key]) }}</small></th>
             @endforeach
-            <th>المجموع<small>/ 30</small></th>
+            <th>المجموع<small>/ {{ $fmt($maxTotal) }}</small></th>
             <th>النتيجة</th>
         </tr>
         </thead>

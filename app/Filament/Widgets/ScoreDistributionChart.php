@@ -9,13 +9,14 @@ class ScoreDistributionChart extends ChartWidget
 {
     protected static ?int $sort = 2;
 
-    protected ?string $heading = 'توزيع المترشحين حسب المجموع';
+    protected ?string $heading = 'توزيع المترشحين حسب النسبة المحققة';
 
     protected function getData(): array
     {
-        $ranges = ['0-5' => [0, 5], '5-10' => [5, 10], '10-15' => [10, 15], '15-20' => [15, 20], '20-25' => [20, 25], '25-30' => [25, 30.01]];
+        $ranges = ['0-20%' => [0, 20], '20-40%' => [20, 40], '40-50%' => [40, 50], '50-60%' => [50, 60], '60-75%' => [60, 75], '75-100%' => [75, 100.01]];
+        $percentages = Candidate::query()->where('max_total', '>', 0)->selectRaw('total * 100.0 / max_total as pct')->pluck('pct');
 
-        $data = collect($ranges)->map(fn ($r) => Candidate::where('total', '>=', $r[0])->where('total', '<', $r[1])->count());
+        $data = collect($ranges)->map(fn (array $r): int => $percentages->filter(fn ($p): bool => $p >= $r[0] && $p < $r[1])->count());
 
         return [
             'datasets' => [[

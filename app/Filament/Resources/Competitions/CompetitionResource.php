@@ -3,8 +3,9 @@
 namespace App\Filament\Resources\Competitions;
 
 use App\Filament\Resources\Candidates\CandidateResource;
-use App\Filament\Resources\Competitions\Pages;
 use App\Models\Competition;
+use App\Models\ScoringProfile;
+use App\Services\ScoreCalculator;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -19,6 +20,8 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -45,6 +48,23 @@ class CompetitionResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
+            Section::make('نوع المسابقة وسلم التنقيط')
+                ->description('يحدد السلم المختار المعايير والحدود القصوى وطريقة الحساب لكل المترشحين في هذه المسابقة.')
+                ->icon(Heroicon::OutlinedScale)
+                ->columnSpanFull()
+                ->schema([
+                    Select::make('scoring_profile_id')
+                        ->label('سلم التنقيط (نوع المسابقة)')
+                        ->relationship('scoringProfile', 'name', fn ($query) => $query->orderBy('sort'))
+                        ->getOptionLabelFromRecordUsing(fn (ScoringProfile $record): string => $record->name)
+                        ->default(fn (): ?int => ScoringProfile::default()?->getKey())
+                        ->searchable()->preload()->required()->native(false)
+                        ->live()
+                        ->helperText('لإضافة نوع مسابقة جديد أو تعديل القيم: الأدوات ← سلالم التنقيط.'),
+                    View::make('filament.profile-card')
+                        ->viewData(fn (Get $get): array => ['profile' => ScoringProfile::find($get('scoring_profile_id'))]),
+                ]),
+
             Section::make('معلومات المسابقة')
                 ->icon(Heroicon::OutlinedTrophy)
                 ->columns(2)
@@ -61,8 +81,8 @@ class CompetitionResource extends Resource
                     TextInput::make('positions')->label('عدد المناصب المالية')->integer()->minValue(1)->default(1)->required(),
                     Select::make('status')->label('الحالة')->options(Competition::STATUSES)->default('open')->required()->native(false),
                     DatePicker::make('reference_date')
-                        ->label('التاريخ المرجعي (اختتام التسجيلات)')
-                        ->helperText('يُستعمل لحساب أقدمية الشهادة. إن تُرك فارغاً يُستعمل تاريخ المسابقة ثم تاريخ اليوم.')
+                        ->label('تاريخ فتح المسابقة')
+                        ->helperText('تُحسب أقدمية الشهادة إلى غاية هذا التاريخ (حسب معايير الانتقاء). إن تُرك فارغاً يُستعمل تاريخ إجراء المسابقة ثم تاريخ اليوم.')
                         ->native(false)->displayFormat('d/m/Y'),
                     DatePicker::make('exam_date')->label('تاريخ إجراء المسابقة')->native(false)->displayFormat('d/m/Y'),
                     Textarea::make('notes')->label('ملاحظات')->rows(3)->columnSpanFull(),
@@ -76,11 +96,12 @@ class CompetitionResource extends Resource
             ->columns([
                 TextColumn::make('title')->label('المسابقة')->searchable()->sortable()->wrap()->weight('bold'),
                 TextColumn::make('grade')->label('الرتبة')->searchable()->badge()->color('gray'),
+                TextColumn::make('scoringProfile.name')->label('سلم التنقيط')->limit(35)->tooltip(fn ($state) => $state)->toggleable(),
                 TextColumn::make('institution')->label('المؤسسة')->searchable()->toggleable(),
                 TextColumn::make('positions')->label('المناصب')->alignCenter()->sortable(),
                 TextColumn::make('candidates_count')->counts('candidates')->label('المترشحون')->alignCenter()->badge()->color('info')->sortable(),
-                TextColumn::make('candidates_max_total')->max('candidates', 'total')->label('أعلى معدل')->alignCenter()
-                    ->formatStateUsing(fn ($state) => $state ? number_format($state, 2).' / 30' : '-'),
+                TextColumn::make('candidates_max_total')->max('candidates', 'total')->label('أعلى مجموع')->alignCenter()
+                    ->formatStateUsing(fn ($state, Competition $record) => $state ? number_format($state, 2).' / '.ScoreCalculator::format($record->calculator()->maxTotal()) : '-'),
                 TextColumn::make('exam_date')->label('تاريخ المسابقة')->date('d/m/Y')->sortable(),
                 TextColumn::make('status')->label('الحالة')->badge()
                     ->formatStateUsing(fn ($state) => Competition::STATUSES[$state] ?? $state)
