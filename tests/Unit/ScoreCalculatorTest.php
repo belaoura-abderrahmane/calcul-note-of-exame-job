@@ -67,12 +67,21 @@ class ScoreCalculatorTest extends TestCase
         $this->assertSame(4.5, $score);
     }
 
-    public function test_seniority_counts_full_years_and_is_capped(): void
+    public function test_seniority_counts_years_and_remaining_months_and_is_capped(): void
     {
-        $this->assertSame(1.5, $this->calc()->seniority('2023-01-01', '2026-06-30'));
+        // 3 سنوات و 5 أشهر = 3 × 0.5 + 5 × 0.04
+        $this->assertSame(1.7, $this->calc()->seniority('2023-01-01', '2026-06-30'));
+        $this->assertSame(['years' => 6, 'months' => 0], $this->calc()->seniorityDuration('2020-11-01', '2026-11-12'));
         $this->assertSame(5.0, $this->calc()->seniority('2005-01-01', '2026-01-01'));
         $this->assertSame(0.0, $this->calc()->seniority('2027-01-01', '2026-01-01'));
         $this->assertSame(2.0, $this->calc()->seniority(null, null, 4));
+    }
+
+    public function test_seniority_counts_full_years_only_when_no_monthly_points(): void
+    {
+        $calc = ScoreCalculator::make(['seniority' => ['per_year' => 0.5, 'per_month' => 0, 'max' => 5]]);
+
+        $this->assertSame(1.5, $calc->seniority('2023-01-01', '2026-06-30'));
     }
 
     public function test_full_calculation_max_is_thirty(): void

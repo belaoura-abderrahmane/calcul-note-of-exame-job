@@ -203,6 +203,10 @@ class ScoringProfileResource extends Resource
                         $rename('seniority'),
                         $help('seniority'),
                         $num('rules.seniority.per_year', 'النقاط لكل سنة كاملة'),
+                        TextInput::make('rules.seniority.per_month')
+                            ->label('النقاط لكل شهر إضافي')
+                            ->helperText('ضع 0 لاحتساب السنوات الكاملة فقط.')
+                            ->numeric()->minValue(0)->step(0.01)->default(0),
                     ]),
 
                     Tab::make('7. المقابلة')->icon(Heroicon::OutlinedChatBubbleLeftRight)->schema([

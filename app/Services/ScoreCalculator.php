@@ -192,11 +192,15 @@ class ScoreCalculator
         return $this->clamp($result, $this->rules['experience']['max']);
     }
 
-    /** عدد السنوات الكاملة بين تاريخ الشهادة والتاريخ المرجعي */
-    public function seniorityYears(mixed $diplomaDate, mixed $referenceDate = null): int
+    /**
+     * مدة أقدمية الشهادة (سنوات كاملة + أشهر كاملة متبقية) بين تاريخ الشهادة والتاريخ المرجعي.
+     *
+     * @return array{years: int, months: int}
+     */
+    public function seniorityDuration(mixed $diplomaDate, mixed $referenceDate = null): array
     {
         if (! $diplomaDate) {
-            return 0;
+            return ['years' => 0, 'months' => 0];
         }
 
         $from = $diplomaDate instanceof CarbonInterface ? $diplomaDate : Carbon::parse($diplomaDate);
@@ -204,18 +208,49 @@ class ScoreCalculator
             ? ($referenceDate instanceof CarbonInterface ? $referenceDate : Carbon::parse($referenceDate))
             : now();
 
-        return $from->greaterThan($to) ? 0 : (int) $from->diffInYears($to);
+        if ($from->greaterThan($to)) {
+            return ['years' => 0, 'months' => 0];
+        }
+
+        $totalMonths = (int) $from->diffInMonths($to);
+
+        return ['years' => intdiv($totalMonths, 12), 'months' => $totalMonths % 12];
     }
 
+    /** عدد السنوات الكاملة بين تاريخ الشهادة والتاريخ المرجعي */
+    public function seniorityYears(mixed $diplomaDate, mixed $referenceDate = null): int
+    {
+        return $this->seniorityDuration($diplomaDate, $referenceDate)['years'];
+    }
+
+    /**
+     * نقاط أقدمية الشهادة: per_year عن كل سنة كاملة + per_month عن كل شهر متبقٍّ، في حدود السقف.
+     * القيمة اليدوية (إن وُجدت) عدد سنوات قد يكون عشرياً.
+     */
     public function seniority(mixed $diplomaDate, mixed $referenceDate = null, mixed $overrideYears = null): float
     {
         $r = $this->rules['seniority'];
 
-        $years = ($overrideYears !== null && $overrideYears !== '')
-            ? (float) $overrideYears
-            : $this->seniorityYears($diplomaDate, $referenceDate);
+        if ($overrideYears !== null && $overrideYears !== '') {
+            return $this->clamp((float) $overrideYears * (float) $r['per_year'], $r['max']);
+        }
 
-        return $this->clamp($years * (float) $r['per_year'], $r['max']);
+        $duration = $this->seniorityDuration($diplomaDate, $referenceDate);
+        $points = $duration['years'] * (float) $r['per_year'] + $duration['months'] * (float) ($r['per_month'] ?? 0);
+
+        return $this->clamp($points, $r['max']);
+    }
+
+    /** وصف مقروء للمدة ونقاطها، مثل: «6 سنوات و 3 أشهر ← 3.12 نقطة» */
+    public function seniorityDescription(mixed $diplomaDate, mixed $referenceDate = null): string
+    {
+        $duration = $this->seniorityDuration($diplomaDate, $referenceDate);
+        $text = 'المدة: '.$duration['years'].' سنة';
+        if ((float) ($this->rules['seniority']['per_month'] ?? 0) > 0) {
+            $text .= ' و '.$duration['months'].' شهر';
+        }
+
+        return $text.' ← '.static::format($this->seniority($diplomaDate, $referenceDate)).' نقطة';
     }
 
     // ---------------------------------------------------------------

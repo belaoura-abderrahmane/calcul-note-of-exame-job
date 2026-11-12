@@ -182,7 +182,10 @@ class ScoringFields
             Grid::make(2)->schema([
                 Section::make($title(6, 'score_seniority'))
                     ->description(fn (Get $get) => 'الحد الأقصى '.$fmt($max($get, 'score_seniority')).' - '
-                        .$fmt((float) $calc($get)->rules()['seniority']['per_year']).' عن كل سنة كاملة')
+                        .$fmt((float) $calc($get)->rules()['seniority']['per_year']).' عن كل سنة'
+                        .((float) ($calc($get)->rules()['seniority']['per_month'] ?? 0) > 0
+                            ? ' و'.$fmt((float) $calc($get)->rules()['seniority']['per_month']).' عن كل شهر'
+                            : ' كاملة'))
                     ->icon(Heroicon::OutlinedCalendarDays)
                     ->hidden($hiddenIfZero('score_seniority'))
                     ->schema([
@@ -191,10 +194,10 @@ class ScoringFields
                             ->label('تاريخ الحصول على الشهادة')
                             ->native(false)->displayFormat('d/m/Y')
                             ->live()
-                            ->helperText(fn (Get $get) => 'عدد السنوات الكاملة: '.$calc($get)->seniorityYears($get('diploma_date'), $referenceDate($get))),
+                            ->helperText(fn (Get $get) => $calc($get)->seniorityDescription($get('diploma_date'), $referenceDate($get))),
                         TextInput::make('seniority_years_override')
-                            ->label('أو أدخل عدد سنوات الأقدمية يدوياً')
-                            ->numeric()->minValue(0)->step(1)
+                            ->label('أو أدخل عدد سنوات الأقدمية يدوياً (يلغي الحساب التلقائي)')
+                            ->numeric()->minValue(0)->step(0.01)
                             ->placeholder('اتركه فارغاً للحساب التلقائي')
                             ->live(debounce: 400),
                     ]),
