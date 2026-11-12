@@ -75,6 +75,7 @@ class ScoreCalculatorTest extends TestCase
         $this->assertSame(5.0, $this->calc()->seniority('2005-01-01', '2026-01-01'));
         $this->assertSame(0.0, $this->calc()->seniority('2027-01-01', '2026-01-01'));
         $this->assertSame(2.0, $this->calc()->seniority(null, null, 4));
+        $this->assertSame(1.7, $this->calc()->seniority('2023-01-01', '2026-06-30', 0), 'القيمة اليدوية 0 لا تلغي الحساب التلقائي');
     }
 
     public function test_seniority_counts_full_years_only_when_no_monthly_points(): void

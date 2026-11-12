@@ -225,13 +225,13 @@ class ScoreCalculator
 
     /**
      * نقاط أقدمية الشهادة: per_year عن كل سنة كاملة + per_month عن كل شهر متبقٍّ، في حدود السقف.
-     * القيمة اليدوية (إن وُجدت) عدد سنوات قد يكون عشرياً.
+     * القيمة اليدوية (إن وُجدت وكانت أكبر من 0) عدد سنوات قد يكون عشرياً؛ القيمة 0 تُعامل كفارغة.
      */
     public function seniority(mixed $diplomaDate, mixed $referenceDate = null, mixed $overrideYears = null): float
     {
         $r = $this->rules['seniority'];
 
-        if ($overrideYears !== null && $overrideYears !== '') {
+        if (is_numeric($overrideYears) && (float) $overrideYears > 0) {
             return $this->clamp((float) $overrideYears * (float) $r['per_year'], $r['max']);
         }
 

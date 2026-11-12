@@ -198,7 +198,7 @@ class ScoringFields
                         TextInput::make('seniority_years_override')
                             ->label('أو أدخل عدد سنوات الأقدمية يدوياً (يلغي الحساب التلقائي)')
                             ->numeric()->minValue(0)->step(0.01)
-                            ->placeholder('اتركه فارغاً للحساب التلقائي')
+                            ->placeholder('اتركه فارغاً (أو 0) للحساب التلقائي من التاريخ')
                             ->live(debounce: 400),
                     ]),
 
