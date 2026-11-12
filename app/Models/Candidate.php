@@ -16,6 +16,7 @@ class Candidate extends Model
         'is_grande_ecole' => 'boolean',
         'is_major' => 'boolean',
         'experiences' => 'array',
+        'interview_details' => 'array',
         'specialty_match' => 'float',
         'average' => 'float',
         'interview' => 'float',
@@ -60,7 +61,7 @@ class Candidate extends Model
         $result = $calculator->calculate([
             ...$this->only([
                 'specialty_match', 'average', 'master_mention', 'is_grande_ecole', 'is_major',
-                'trainings_count', 'research_count', 'training_points', 'research_points', 'experiences', 'seniority_years_override', 'interview',
+                'trainings_count', 'research_count', 'training_points', 'research_points', 'experiences', 'seniority_years_override', 'interview', 'interview_details',
             ]),
             'diploma_date' => $this->diploma_date,
             'reference_date' => $this->competition?->reference_date ?? $this->competition?->exam_date,
@@ -68,6 +69,9 @@ class Candidate extends Model
 
         unset($result['percentage']);
         $this->forceFill($result);
+
+        // العلامة الإجمالية للمقابلة تبقى مطابقة لمجموع عناصرها
+        $this->interview = $result['score_interview'];
     }
 
     /** الترتيب داخل المسابقة */

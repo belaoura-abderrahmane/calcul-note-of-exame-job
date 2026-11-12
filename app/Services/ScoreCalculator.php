@@ -33,7 +33,7 @@ class ScoreCalculator
     /**
      * @param  array  $input  specialty_match, average, master_mention, is_grande_ecole, is_major,
      *                        trainings_count, research_count, experiences[], diploma_date,
-     *                        reference_date, seniority_years_override, interview
+     *                        reference_date, seniority_years_override, interview, interview_details{key: points}
      */
     public function calculate(array $input): array
     {
@@ -53,7 +53,7 @@ class ScoreCalculator
                 $input['reference_date'] ?? null,
                 $input['seniority_years_override'] ?? null,
             ),
-            'score_interview' => $this->clamp($input['interview'] ?? 0, $this->rules['interview']['max']),
+            'score_interview' => $this->interview($input['interview'] ?? 0, $input['interview_details'] ?? null),
         ];
 
         $total = round(array_sum($scores), 2);
@@ -251,6 +251,39 @@ class ScoreCalculator
         }
 
         return $text.' ← '.static::format($this->seniority($diplomaDate, $referenceDate)).' نقطة';
+    }
+
+    /**
+     * عناصر تفصيل المقابلة في السلم (فارغة = علامة واحدة).
+     *
+     * @return array<int, array{key: string, label: string, max: float|int|string}>
+     */
+    public function interviewItems(): array
+    {
+        return array_values(array_filter(
+            $this->rules['interview']['items'] ?? [],
+            fn (mixed $item): bool => is_array($item) && filled($item['key'] ?? null),
+        ));
+    }
+
+    /**
+     * علامة المقابلة: مجموع عناصر التفصيل (كل عنصر في حدود سقفه) إن كان السلم مفصلاً
+     * وأُدخلت العناصر، وإلا العلامة الإجمالية. في حدود سقف المعيار.
+     *
+     * @param  array<string, mixed>|null  $details
+     */
+    public function interview(mixed $total, ?array $details = null): float
+    {
+        $items = $this->interviewItems();
+        $max = $this->rules['interview']['max'];
+
+        if ($items === [] || ! is_array($details) || collect($details)->filter(fn (mixed $v): bool => $v !== null && $v !== '')->isEmpty()) {
+            return $this->clamp($total, $max);
+        }
+
+        $sum = collect($items)->sum(fn (array $item): float => $this->clamp($details[$item['key']] ?? 0, $item['max'] ?? $max));
+
+        return $this->clamp($sum, $max);
     }
 
     // ---------------------------------------------------------------

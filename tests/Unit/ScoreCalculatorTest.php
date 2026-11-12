@@ -78,6 +78,16 @@ class ScoreCalculatorTest extends TestCase
         $this->assertSame(1.7, $this->calc()->seniority('2023-01-01', '2026-06-30', 0), 'القيمة اليدوية 0 لا تلغي الحساب التلقائي');
     }
 
+    public function test_interview_is_the_sum_of_its_items_each_capped(): void
+    {
+        $calc = $this->calc();
+
+        $this->assertSame(2.5, $calc->interview(0, ['analysis' => 1, 'communication' => 0.5, 'qualifications' => 1]));
+        $this->assertSame(2.0, $calc->interview(0, ['analysis' => 5, 'communication' => 1]), 'كل عنصر في حدود نقطته');
+        $this->assertSame(2.5, $calc->interview(2.5, null), 'بدون تفصيل تُعتمد العلامة الإجمالية');
+        $this->assertSame(3.0, ScoreCalculator::make(ScoringPresets::teachers()['rules'])->interview(3, ['analysis' => 1]), 'سلم بدون عناصر');
+    }
+
     public function test_seniority_counts_full_years_only_when_no_monthly_points(): void
     {
         $calc = ScoreCalculator::make(['seniority' => ['per_year' => 0.5, 'per_month' => 0, 'max' => 5]]);

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\Candidates\Pages\CreateCandidate;
 use App\Filament\Resources\ScoringProfiles\Pages\CreateScoringProfile;
 use App\Filament\Resources\ScoringProfiles\Pages\EditScoringProfile;
 use App\Models\Candidate;
@@ -49,6 +50,24 @@ class ScoringProfilesTest extends TestCase
         $this->assertSame(33.0, $candidate->max_total);
         $this->assertSame(10.0, $candidate->score_path);
         $this->assertSame(19.0, $candidate->total);
+    }
+
+    public function test_interview_details_are_entered_per_item_and_summed(): void
+    {
+        $competition = Competition::create(['title' => 'عامة', 'grade' => 'متصرف', 'positions' => 1]);
+
+        Livewire::test(CreateCandidate::class)
+            ->fillForm([
+                'competition_id' => $competition->id,
+                'last_name' => 'أ', 'first_name' => 'ب',
+                'interview_details' => ['analysis' => 1, 'communication' => 0.75, 'qualifications' => 0.5],
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $candidate = $competition->candidates()->firstOrFail();
+        $this->assertSame(2.25, $candidate->score_interview);
+        $this->assertSame(2.25, $candidate->interview);
     }
 
     public function test_editing_a_scale_recalculates_the_candidates_that_use_it(): void

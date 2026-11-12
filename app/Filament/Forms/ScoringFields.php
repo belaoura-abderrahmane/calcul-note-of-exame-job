@@ -208,7 +208,19 @@ class ScoringFields
                     ->hidden($hiddenIfZero('score_interview'))
                     ->schema([
                         static::help($calc, 'interview'),
+                        Grid::make(1)
+                            ->visible(fn (Get $get): bool => $calc($get)->interviewItems() !== [])
+                            ->schema(fn (Get $get): array => collect($calc($get)->interviewItems())
+                                ->map(fn (array $item): TextInput => TextInput::make('interview_details.'.$item['key'])
+                                    ->label($item['label'])
+                                    ->numeric()->minValue(0)->step(0.25)
+                                    ->maxValue((float) $item['max'])
+                                    ->placeholder('0')
+                                    ->suffix('/ '.$fmt((float) $item['max']))
+                                    ->live(debounce: 400))
+                                ->all()),
                         TextInput::make('interview')
+                            ->hidden(fn (Get $get): bool => $calc($get)->interviewItems() !== [])
                             ->label('علامة المقابلة')
                             ->numeric()->minValue(0)->step(0.25)
                             ->maxValue(fn (Get $get): float => $max($get, 'score_interview'))
@@ -270,6 +282,7 @@ class ScoringFields
                         'reference_date' => $referenceDate($get),
                         'seniority_years_override' => $get('seniority_years_override'),
                         'interview' => $get('interview'),
+                        'interview_details' => $get('interview_details'),
                     ]),
                     'maxima' => $calc->maxima(),
                     'labels' => $calc->criterionLabels(),

@@ -212,6 +212,17 @@ class ScoringProfileResource extends Resource
                     Tab::make('7. المقابلة')->icon(Heroicon::OutlinedChatBubbleLeftRight)->schema([
                         $rename('interview'),
                         $help('interview'),
+                        Repeater::make('rules.interview.items')
+                            ->label('تفصيل علامة المقابلة (اتركه فارغاً لإدخال علامة واحدة)')
+                            ->helperText('يُدخل عضو اللجنة علامة كل عنصر، ويكون مجموعها علامة المقابلة في حدود الحد الأقصى للمعيار.')
+                            ->schema([
+                                $key(),
+                                TextInput::make('label')->label('العنصر')->required()->columnSpan(2),
+                                $num('max', 'النقاط القصوى'),
+                            ])
+                            ->columns(3)
+                            ->defaultItems(0)
+                            ->addActionLabel('إضافة عنصر'),
                     ]),
                 ]),
         ]);
