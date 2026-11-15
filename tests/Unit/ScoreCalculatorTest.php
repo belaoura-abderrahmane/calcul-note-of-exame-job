@@ -27,8 +27,47 @@ class ScoreCalculatorTest extends TestCase
 
     public function test_path_is_capped_at_seven_whatever_the_bonuses(): void
     {
-        $this->assertSame(7.0, $this->calc()->path(15.5, 'excellent', true, true));
-        $this->assertSame(6.0, $this->calc()->path(14.2, 'bien', false, false));
+        $this->assertSame(7.0, $this->calc()->path(15.5, null, true, true));
+        $this->assertSame(7.0, $this->calc()->path(14.2, null, true, false), 'خريج مدرسة عليا +2');
+    }
+
+    public function test_magister_mention_replaces_the_average_points(): void
+    {
+        $this->assertSame(2.5, $this->calc()->path(16, 'bien', false, false));
+        $this->assertSame(1.5, $this->calc()->path(null, 'passable', false, false));
+        $this->assertSame(5.0, $this->calc()->path(null, 'tres_bien', true, false));
+        $this->assertSame(7.0, $this->calc()->path(16, null, false, false), 'بدون تقدير يُعتمد المعدل');
+    }
+
+    public function test_absent_candidate_gets_no_interview_points(): void
+    {
+        $result = $this->calc()->calculate(['interview' => 3, 'interview_absent' => true]);
+
+        $this->assertSame(0.0, $result['score_interview']);
+    }
+
+    /** @return array<string, array{0: string, 1: float}> */
+    public static function scales2011(): array
+    {
+        return [
+            'teaching other sectors' => ['teachingOtherSectors', 20.0],
+            'specialized training' => ['specializedTraining', 20.0],
+        ];
+    }
+
+    #[DataProvider('scales2011')]
+    public function test_2011_scales_total_twenty_points(string $preset, float $expected): void
+    {
+        $this->assertSame($expected, ScoreCalculator::make(ScoringPresets::$preset()['rules'])->maxTotal());
+    }
+
+    public function test_specialized_training_path_scale(): void
+    {
+        $calc = ScoreCalculator::make(ScoringPresets::specializedTraining()['rules']);
+
+        $this->assertSame(8.0, $calc->path(13.5, null, false, false));
+        $this->assertSame(12.0, $calc->path(14.5, null, true, true), 'في حدود 12');
+        $this->assertSame(2.0, $calc->interview(0, ['analysis' => 3]), 'التحليل والتلخيص على نقطتين');
     }
 
     public function test_experience_types_are_not_summed_and_each_type_has_its_own_cap(): void

@@ -33,7 +33,7 @@ class ScoreCalculator
     /**
      * @param  array  $input  specialty_match, average, master_mention, is_grande_ecole, is_major,
      *                        trainings_count, research_count, experiences[], diploma_date,
-     *                        reference_date, seniority_years_override, interview, interview_details{key: points}
+     *                        reference_date, seniority_years_override, interview, interview_details{key: points}, interview_absent
      */
     public function calculate(array $input): array
     {
@@ -53,7 +53,9 @@ class ScoreCalculator
                 $input['reference_date'] ?? null,
                 $input['seniority_years_override'] ?? null,
             ),
-            'score_interview' => $this->interview($input['interview'] ?? 0, $input['interview_details'] ?? null),
+            'score_interview' => empty($input['interview_absent'])
+                ? $this->interview($input['interview'] ?? 0, $input['interview_details'] ?? null)
+                : 0.0,
         ];
 
         $total = round(array_sum($scores), 2);
@@ -101,6 +103,54 @@ class ScoreCalculator
         return (float) ($row['bonus'] ?? 0);
     }
 
+    public function mentionReplacesAverage(): bool
+    {
+        return ($this->rules['path']['mention_mode'] ?? 'bonus') === 'replace';
+    }
+
+    public function mentionLabel(): string
+    {
+        return filled($this->rules['path']['mention_label'] ?? null)
+            ? $this->rules['path']['mention_label']
+            : 'تقدير الشهادة (إن وجد)';
+    }
+
+    /**
+     * معايير الفصل بين المتساوين في النقاط، بالترتيب.
+     *
+     * @return array<int, string>
+     */
+    public function tieBreakers(): array
+    {
+        return array_values(array_intersect($this->rules['ranking']['tie_break'] ?? ['age'], array_keys(static::tieBreakerOptions())));
+    }
+
+    /** @return array<string, string> */
+    public static function tieBreakerOptions(): array
+    {
+        return [
+            'age' => 'سن المترشح (الأولوية للأكبر سناً)',
+            'family' => 'الوضعية العائلية (متزوج له أولاد، متزوج بدون أولاد، متكفل بعائلة، أعزب)',
+            'disabled' => 'الأشخاص المعوقون القادرون على أداء مهام الرتبة',
+            'rights' => 'ذوو الحقوق (ابن أو ابنة شهيد)',
+            'path' => 'تقدير الشهادة أو المعدل العام لمسار الدراسة',
+            'interview' => 'علامة المقابلة',
+            'experience' => 'نقاط الخبرة المهنية',
+            'diploma_date' => 'أقدمية الشهادة (الأقدم أولاً)',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function familyStatusOptions(): array
+    {
+        return [
+            'married_children' => 'متزوج له أولاد',
+            'married' => 'متزوج بدون أولاد',
+            'family_head' => 'متكفل بعائلة',
+            'single' => 'أعزب',
+        ];
+    }
+
     /**
      * المسار الدراسي: نقاط المعدل + علاوة التقدير (+ علاوات المدرسة العليا والأول على الدفعة).
      * إذا كانت bonus_outside_cap مفعلة (سلم الأساتذة) تُضاف العلاوتان الأخيرتان خارج سقف المعيار.
@@ -109,7 +159,12 @@ class ScoreCalculator
     {
         $p = $this->rules['path'];
         $extra = ($grandeEcole ? (float) $p['grande_ecole_bonus'] : 0) + ($major ? (float) $p['major_bonus'] : 0);
-        $base = $this->averagePoints($average) + $this->mentionBonus($mention);
+        $mentionPoints = $this->mentionBonus($mention);
+
+        // mention_mode = replace: تقدير الماجستير يعوض نقاط المعدل (الجريدة الرسمية عدد 13 لسنة 2020)
+        $base = $this->mentionReplacesAverage() && $mentionPoints > 0
+            ? $mentionPoints
+            : $this->averagePoints($average) + ($this->mentionReplacesAverage() ? 0 : $mentionPoints);
 
         if (! empty($p['bonus_outside_cap'])) {
             return round($this->clamp($base, $p['max']) + max(0, $extra), 2);

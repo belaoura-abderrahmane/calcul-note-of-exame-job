@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Competition;
+use App\Services\ScoreCalculator;
 
 class PrintController extends Controller
 {
@@ -16,6 +17,7 @@ class PrintController extends Controller
             'labels' => collect($calculator->criterionLabels())->filter(fn (string $label, string $key): bool => $calculator->maxima()[$key] > 0)->all(),
             'maxima' => $calculator->maxima(),
             'maxTotal' => $calculator->maxTotal(),
+            'tieBreakers' => collect($calculator->tieBreakers())->map(fn (string $key): string => ScoreCalculator::tieBreakerOptions()[$key])->all(),
         ]);
     }
 }

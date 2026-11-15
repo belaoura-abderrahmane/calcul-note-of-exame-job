@@ -79,11 +79,14 @@ class ScoringFields
                         ->live(debounce: 400)
                         ->helperText(fn (Get $get) => 'نقاط المعدل حسب السلم: '.$fmt($calc($get)->averagePoints($get('average')))),
                     Select::make('master_mention')
-                        ->label('تقدير شهادة الماستر / المهندس (إن وجد)')
+                        ->label(fn (Get $get): string => $calc($get)->mentionLabel())
                         ->options(fn (Get $get): array => $calc($get)->mentionOptions())
+                        ->hidden(fn (Get $get): bool => $calc($get)->mentionOptions() === [])
                         ->placeholder('بدون')
                         ->live()
-                        ->helperText(fn (Get $get) => 'العلاوة: '.$fmt($calc($get)->mentionBonus($get('master_mention')))),
+                        ->helperText(fn (Get $get) => $calc($get)->mentionReplacesAverage()
+                            ? 'نقاط التقدير (تعوض نقاط المعدل): '.$fmt($calc($get)->mentionBonus($get('master_mention')))
+                            : 'العلاوة: '.$fmt($calc($get)->mentionBonus($get('master_mention')))),
                     Toggle::make('is_grande_ecole')
                         ->label('خريج مدرسة عليا')
                         ->helperText(fn (Get $get) => 'علاوة: +'.$fmt((float) $calc($get)->rules()['path']['grande_ecole_bonus']))
@@ -208,6 +211,9 @@ class ScoringFields
                     ->hidden($hiddenIfZero('score_interview'))
                     ->schema([
                         static::help($calc, 'interview'),
+                        $withDetails ? Toggle::make('interview_absent')
+                            ->label('تغيب عن المقابلة (يُقصى من المسابقة)')
+                            ->live() : null,
                         Grid::make(1)
                             ->visible(fn (Get $get): bool => $calc($get)->interviewItems() !== [])
                             ->schema(fn (Get $get): array => collect($calc($get)->interviewItems())
@@ -283,6 +289,7 @@ class ScoringFields
                         'seniority_years_override' => $get('seniority_years_override'),
                         'interview' => $get('interview'),
                         'interview_details' => $get('interview_details'),
+                        'interview_absent' => $get('interview_absent'),
                     ]),
                     'maxima' => $calc->maxima(),
                     'labels' => $calc->criterionLabels(),

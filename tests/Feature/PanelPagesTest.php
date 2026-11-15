@@ -41,7 +41,7 @@ class PanelPagesTest extends TestCase
         $competition = Competition::first();
 
         $this->get("/competitions/{$competition->id}/print")
-            ->assertSeeInOrder(['بن علي', 'قاسمي', 'بوزيد', 'مرابط', 'حمدي']);
+            ->assertSeeInOrder(['بن علي', 'بوزيد', 'مرابط', 'قاسمي', 'حمدي']);
     }
 
     public function test_desktop_mode_logs_in_automatically(): void

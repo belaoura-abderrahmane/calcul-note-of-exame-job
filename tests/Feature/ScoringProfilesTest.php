@@ -29,7 +29,7 @@ class ScoringProfilesTest extends TestCase
     public function test_builtin_scales_are_installed_with_the_general_grid_as_default(): void
     {
         $this->assertSame(
-            ['fonction-publique', 'education-enseignants', 'enseignement-superieur-ma', 'sante-praticiens', 'docteurs-fonction-publique', 'personnalise'],
+            ['fonction-publique', 'education-enseignants', 'enseignement-superieur-ma', 'sante-praticiens', 'docteurs-fonction-publique', 'personnalise', 'enseignement-autres-secteurs', 'formation-specialisee'],
             ScoringProfile::orderBy('sort')->pluck('slug')->all(),
         );
         $this->assertSame('fonction-publique', ScoringProfile::default()->slug);
@@ -68,6 +68,25 @@ class ScoringProfilesTest extends TestCase
         $candidate = $competition->candidates()->firstOrFail();
         $this->assertSame(2.25, $candidate->score_interview);
         $this->assertSame(2.25, $candidate->interview);
+    }
+
+    public function test_ties_are_broken_by_age_then_family_and_absent_candidates_are_excluded(): void
+    {
+        $competition = Competition::create(['title' => 'تساوي', 'grade' => 'متصرف', 'positions' => 1]);
+        $make = fn (string $name, array $extra = []): Candidate => Candidate::create([
+            'competition_id' => $competition->id, 'last_name' => $name, 'first_name' => 'م', 'interview' => 3, ...$extra,
+        ]);
+
+        $absent = $make('غائب', ['interview_absent' => true, 'specialty_match' => 6]);
+        $single = $make('أعزب', ['birth_date' => '1990-01-01', 'family_status' => 'single']);
+        $married = $make('متزوج', ['birth_date' => '1990-01-01', 'family_status' => 'married_children']);
+        $older = $make('أكبر', ['birth_date' => '1985-01-01', 'family_status' => 'single']);
+
+        $this->assertSame([$older->id, $married->id, $single->id, $absent->id], $competition->rankedCandidates()->pluck('id')->all());
+        $this->assertNull($absent->fresh()->rank);
+        $this->assertSame(1, $older->fresh()->rank);
+
+        $this->get("/competitions/{$competition->id}/print")->assertOk()->assertSee('مقصى (غائب عن المقابلة)');
     }
 
     public function test_editing_a_scale_recalculates_the_candidates_that_use_it(): void

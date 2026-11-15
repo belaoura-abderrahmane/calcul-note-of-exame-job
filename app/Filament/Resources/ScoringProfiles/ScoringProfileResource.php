@@ -140,12 +140,20 @@ class ScoringProfileResource extends Resource
                                 ->columns(2)
                                 ->addActionLabel('إضافة شريحة'),
                             Repeater::make('rules.path.mentions')
-                                ->label('علاوة تقدير الماستر / المهندس')
+                                ->label('التقديرات (نقاطها تعوض المعدل أو تضاف إليه حسب الخيار أسفله)')
                                 ->schema([$key(), TextInput::make('label')->label('التقدير')->required(), $num('bonus', 'العلاوة')])
                                 ->columns(2)
                                 ->addActionLabel('إضافة تقدير'),
                         ]),
                         Grid::make(3)->schema([
+                            Select::make('rules.path.mention_mode')
+                                ->label('طريقة احتساب التقدير')
+                                ->options([
+                                    'replace' => 'يعوض نقاط المعدل (حاملو الماجستير - سلم 2020)',
+                                    'bonus' => 'يضاف إلى نقاط المعدل كعلاوة',
+                                ])
+                                ->default('bonus')->native(false)->required(),
+                            TextInput::make('rules.path.mention_label')->label('عنوان خانة التقدير')->placeholder('تقدير شهادة الماجستير (يعوض المعدل)'),
                             $num('rules.path.grande_ecole_bonus', 'علاوة خريجي المدارس العليا'),
                             $num('rules.path.major_bonus', 'علاوة الأول على الدفعة'),
                             Toggle::make('rules.path.bonus_outside_cap')
@@ -223,6 +231,15 @@ class ScoringProfileResource extends Resource
                             ->columns(3)
                             ->defaultItems(0)
                             ->addActionLabel('إضافة عنصر'),
+                    ]),
+
+                    Tab::make('8. الترتيب والفصل بين المتساوين')->icon(Heroicon::OutlinedTrophy)->schema([
+                        Textarea::make('rules.ranking.help')->label('الشرح القانوني')->rows(2)->columnSpanFull(),
+                        Repeater::make('rules.ranking.tie_break')
+                            ->label('معايير الفصل بين المترشحين المتساوين في النقاط (بالترتيب، اسحب لتغيير الأولوية)')
+                            ->simple(Select::make('criterion')->options(ScoreCalculator::tieBreakerOptions())->native(false)->required())
+                            ->reorderable()
+                            ->addActionLabel('إضافة معيار'),
                     ]),
                 ]),
         ]);

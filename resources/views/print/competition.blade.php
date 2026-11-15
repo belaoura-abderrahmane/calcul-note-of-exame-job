@@ -72,11 +72,11 @@
         <tbody>
         @forelse ($candidates as $i => $c)
             @php
-                $rank = $i + 1;
-                $status = $rank <= $competition->positions ? 'ok' : ($rank <= 2 * $competition->positions ? 'wait' : '');
+                $rank = $c->interview_absent ? null : $i + 1;
+                $status = $rank === null ? 'absent' : ($rank <= $competition->positions ? 'ok' : ($rank <= 2 * $competition->positions ? 'wait' : ''));
             @endphp
             <tr class="{{ $status }}">
-                <td>{{ $rank }}</td>
+                <td>{{ $rank ?? '—' }}</td>
                 <td class="name">{{ $c->full_name }}</td>
                 <td>{{ $c->birth_date?->format('d/m/Y') }}</td>
                 <td>{{ $c->specialty }}</td>
@@ -84,7 +84,7 @@
                     <td>{{ $fmt($c->$key) }}</td>
                 @endforeach
                 <td class="total">{{ number_format($c->total, 2) }}</td>
-                <td>{{ $status === 'ok' ? 'ناجح' : ($status === 'wait' ? 'قائمة الانتظار' : 'غير ناجح') }}</td>
+                <td>{{ match ($status) { 'ok' => 'ناجح', 'wait' => 'قائمة الانتظار', 'absent' => 'مقصى (غائب عن المقابلة)', default => 'غير ناجح' } }}</td>
             </tr>
         @empty
             <tr><td colspan="{{ 6 + count($labels) }}">لا يوجد مترشحون</td></tr>
@@ -95,7 +95,7 @@
     <div class="legend">
         <span class="l-ok">ناجح (ضمن عدد المناصب)</span>
         <span class="l-wait">قائمة الانتظار</span>
-        <span>في حالة تساوي النقاط يُقدَّم المترشح الأكبر سناً</span>
+        <span>في حالة تساوي النقاط: {{ collect($tieBreakers)->implode('، ') }}</span>
     </div>
 
     <div class="signs">

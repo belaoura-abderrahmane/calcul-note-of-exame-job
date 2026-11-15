@@ -15,6 +15,9 @@ class Candidate extends Model
         'diploma_date' => 'date',
         'is_grande_ecole' => 'boolean',
         'is_major' => 'boolean',
+        'is_disabled' => 'boolean',
+        'is_martyr_rights' => 'boolean',
+        'interview_absent' => 'boolean',
         'experiences' => 'array',
         'interview_details' => 'array',
         'specialty_match' => 'float',
@@ -61,7 +64,7 @@ class Candidate extends Model
         $result = $calculator->calculate([
             ...$this->only([
                 'specialty_match', 'average', 'master_mention', 'is_grande_ecole', 'is_major',
-                'trainings_count', 'research_count', 'training_points', 'research_points', 'experiences', 'seniority_years_override', 'interview', 'interview_details',
+                'trainings_count', 'research_count', 'training_points', 'research_points', 'experiences', 'seniority_years_override', 'interview', 'interview_details', 'interview_absent',
             ]),
             'diploma_date' => $this->diploma_date,
             'reference_date' => $this->competition?->reference_date ?? $this->competition?->exam_date,
@@ -74,16 +77,9 @@ class Candidate extends Model
         $this->interview = $result['score_interview'];
     }
 
-    /** الترتيب داخل المسابقة */
+    /** الترتيب داخل المسابقة (null للمقصى بسبب الغياب عن المقابلة) */
     public function getRankAttribute(): ?int
     {
-        if (! $this->competition) {
-            return null;
-        }
-
-        $ids = $this->competition->rankedCandidates()->pluck('id')->values();
-        $pos = $ids->search($this->id);
-
-        return $pos === false ? null : $pos + 1;
+        return $this->competition?->rankPositions()[$this->id] ?? null;
     }
 }

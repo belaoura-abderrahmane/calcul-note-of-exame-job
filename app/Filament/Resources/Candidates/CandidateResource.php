@@ -15,6 +15,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
@@ -27,7 +28,6 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use UnitEnum;
 
 class CandidateResource extends Resource
@@ -101,6 +101,13 @@ class CandidateResource extends Resource
                                     TextInput::make('registration_number')->label('رقم التسجيل'),
                                     TextInput::make('phone')->label('رقم الهاتف')->tel(),
                                     TextInput::make('address')->label('العنوان'),
+                                    Select::make('family_status')->label('الوضعية العائلية')
+                                        ->options(ScoreCalculator::familyStatusOptions())->native(false)
+                                        ->helperText('تُستعمل للفصل بين المتساوين في النقاط.'),
+                                    Grid::make(2)->schema([
+                                        Toggle::make('is_disabled')->label('شخص معوق قادر على أداء مهام الرتبة')->inline(false),
+                                        Toggle::make('is_martyr_rights')->label('من ذوي الحقوق (ابن أو ابنة شهيد)')->inline(false),
+                                    ]),
                                 ]),
 
                             Section::make('الشهادة')
@@ -131,29 +138,15 @@ class CandidateResource extends Resource
         ]);
     }
 
-    /** الترتيب داخل المسابقة: النقاط تنازلياً ثم الأكبر سناً ثم أسبقية التسجيل */
-    public static function rankSql(): string
-    {
-        return <<<'SQL'
-            (SELECT COUNT(*) + 1 FROM candidates c2
-              WHERE c2.competition_id = candidates.competition_id
-                AND (c2.total > candidates.total
-                     OR (c2.total = candidates.total AND COALESCE(c2.birth_date, '9999-12-31') < COALESCE(candidates.birth_date, '9999-12-31'))
-                     OR (c2.total = candidates.total AND COALESCE(c2.birth_date, '9999-12-31') = COALESCE(candidates.birth_date, '9999-12-31') AND c2.id < candidates.id)))
-            SQL;
-    }
-
     public static function table(Table $table): Table
     {
         $score = fn ($state) => rtrim(rtrim(number_format((float) $state, 2), '0'), '.');
 
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query
-                ->with('competition')
-                ->select('candidates.*')
-                ->addSelect(DB::raw(static::rankSql().' as rank_position')))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('competition'))
             ->columns([
                 TextColumn::make('rank_position')->label('الترتيب')->alignCenter()->badge()
+                    ->state(fn (Candidate $record): string => (string) ($record->rank ?? 'مقصى'))
                     ->color(fn ($state) => match ((int) $state) {
                         1 => 'warning', 2, 3 => 'info', default => 'gray'
                     })
@@ -182,8 +175,9 @@ class CandidateResource extends Resource
                         $p = $record->competition?->positions ?? 0;
 
                         return match (true) {
-                            $record->rank_position <= $p => 'ناجح',
-                            $record->rank_position <= 2 * $p => 'قائمة الانتظار',
+                            $record->rank === null => 'مقصى (غائب عن المقابلة)',
+                            $record->rank <= $p => 'ناجح',
+                            $record->rank <= 2 * $p => 'قائمة الانتظار',
                             default => 'غير ناجح',
                         };
                     })
