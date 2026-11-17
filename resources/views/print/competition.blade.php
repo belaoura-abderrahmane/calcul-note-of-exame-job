@@ -21,7 +21,9 @@
         td.total { font-weight: 700; background: #f8fafc; }
         tr.ok td { background: #ecfdf5; }
         tr.wait td { background: #fffbeb; }
-        .legend { margin-top: 10px; font-size: 12px; display: flex; gap: 18px; }
+        .legend { margin-top: 10px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+        .legend .rules { flex-basis: 100%; }
+        tr.absent td { color: #991b1b; }
         .legend .l-ok::before, .legend .l-wait::before { content: ''; display: inline-block; width: 12px; height: 12px; border: 1px solid #333; margin-left: 5px; vertical-align: middle; }
         .legend .l-ok::before { background: #ecfdf5; } .legend .l-wait::before { background: #fffbeb; }
         .signs { display: flex; justify-content: space-around; margin-top: 40px; font-weight: 700; }
@@ -72,8 +74,9 @@
         <tbody>
         @forelse ($candidates as $i => $c)
             @php
-                $rank = $c->interview_absent ? null : $i + 1;
-                $status = $rank === null ? 'absent' : ($rank <= $competition->positions ? 'ok' : ($rank <= 2 * $competition->positions ? 'wait' : ''));
+                $rank = $c->rank;
+                $result = $c->resultLabel();
+                $status = match (true) { $result === 'ناجح' => 'ok', $result === 'قائمة الانتظار' => 'wait', $rank === null => 'absent', default => '' };
             @endphp
             <tr class="{{ $status }}">
                 <td>{{ $rank ?? '—' }}</td>
@@ -84,7 +87,7 @@
                     <td>{{ $fmt($c->$key) }}</td>
                 @endforeach
                 <td class="total">{{ number_format($c->total, 2) }}</td>
-                <td>{{ match ($status) { 'ok' => 'ناجح', 'wait' => 'قائمة الانتظار', 'absent' => 'مقصى (غائب عن المقابلة)', default => 'غير ناجح' } }}</td>
+                <td>{{ $result }}</td>
             </tr>
         @empty
             <tr><td colspan="{{ 6 + count($labels) }}">لا يوجد مترشحون</td></tr>
@@ -95,7 +98,8 @@
     <div class="legend">
         <span class="l-ok">ناجح (ضمن عدد المناصب)</span>
         <span class="l-wait">قائمة الانتظار</span>
-        <span>في حالة تساوي النقاط: {{ collect($tieBreakers)->implode('، ') }}</span>
+        <span class="rules">النجاح حسب الترتيب في حدود عدد المناصب ({{ $competition->positions }})، تليها قائمة الانتظار بنفس العدد. لا توجد علامة إقصائية في المسابقة على أساس الشهادة؛ يُقصى المتغيب عن المقابلة ومن لا يستوفي شروط المشاركة (السن 18 سنة على الأقل، الشهادة قبل تاريخ المسابقة).</span>
+        <span class="rules">في حالة تساوي النقاط: {{ collect($tieBreakers)->implode('، ') }}.</span>
     </div>
 
     <div class="signs">

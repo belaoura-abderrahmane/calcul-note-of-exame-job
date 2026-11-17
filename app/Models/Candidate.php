@@ -77,7 +77,55 @@ class Candidate extends Model
         $this->interview = $result['score_interview'];
     }
 
-    /** الترتيب داخل المسابقة (null للمقصى بسبب الغياب عن المقابلة) */
+    /** السن الأدنى للالتحاق بوظيفة عمومية (المادة 75 من الأمر رقم 06-03) */
+    public const MINIMUM_AGE = 18;
+
+    /**
+     * سبب إقصاء المترشح من الترتيب حسب القانون، أو null إذا كان مقبولاً.
+     * - الغياب عن المقابلة (المادة 6 من القرار المنشور في الجريدة الرسمية عدد 13 لسنة 2020)؛
+     * - السن أقل من 18 سنة في تاريخ المسابقة (المادة 75 من الأمر رقم 06-03)؛
+     * - الشهادة متحصل عليها بعد تاريخ فتح المسابقة.
+     */
+    public function exclusionReason(): ?string
+    {
+        if ($this->interview_absent) {
+            return 'غائب عن المقابلة';
+        }
+
+        $referenceDate = $this->competition?->reference_date ?? $this->competition?->exam_date ?? now();
+
+        if ($this->birth_date && $this->birth_date->diffInYears($referenceDate) < self::MINIMUM_AGE) {
+            return 'السن أقل من '.self::MINIMUM_AGE.' سنة في تاريخ المسابقة';
+        }
+
+        if ($this->diploma_date && $this->diploma_date->greaterThan($referenceDate)) {
+            return 'الشهادة بعد تاريخ فتح المسابقة';
+        }
+
+        return null;
+    }
+
+    public function isExcluded(): bool
+    {
+        return $this->exclusionReason() !== null;
+    }
+
+    /**
+     * النتيجة حسب الرتبة: ناجح في حدود عدد المناصب، ثم القائمة الاحتياطية بنفس العدد، والباقي غير ناجح.
+     */
+    public function resultLabel(): string
+    {
+        $positions = (int) ($this->competition?->positions ?? 0);
+
+        return match (true) {
+            $this->isExcluded() => 'مقصى: '.$this->exclusionReason(),
+            $this->rank !== null && $this->rank <= $positions => 'ناجح',
+            $this->rank !== null && $this->rank <= 2 * $positions => 'قائمة الانتظار',
+            default => 'غير ناجح',
+        };
+    }
+
+    /** الترتيب داخل المسابقة (null للمقصى) */
     public function getRankAttribute(): ?int
     {
         return $this->competition?->rankPositions()[$this->id] ?? null;

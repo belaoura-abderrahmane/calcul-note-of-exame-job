@@ -85,8 +85,27 @@ class ScoringProfilesTest extends TestCase
         $this->assertSame([$older->id, $married->id, $single->id, $absent->id], $competition->rankedCandidates()->pluck('id')->all());
         $this->assertNull($absent->fresh()->rank);
         $this->assertSame(1, $older->fresh()->rank);
+        $this->assertSame(3, $single->fresh()->rank);
 
-        $this->get("/competitions/{$competition->id}/print")->assertOk()->assertSee('مقصى (غائب عن المقابلة)');
+        $this->get("/competitions/{$competition->id}/print")->assertOk()->assertSee('مقصى: غائب عن المقابلة');
+    }
+
+    public function test_ineligible_candidates_are_excluded_whatever_their_score(): void
+    {
+        $competition = Competition::create(['title' => 'أهلية', 'grade' => 'تقني', 'positions' => 4, 'reference_date' => '2026-11-08']);
+        $make = fn (string $name, array $extra = []): Candidate => Candidate::create([
+            'competition_id' => $competition->id, 'last_name' => $name, 'first_name' => 'م', 'birth_date' => '1995-01-01', ...$extra,
+        ]);
+
+        $minor = $make('قاصر', ['birth_date' => '2026-11-10', 'specialty_match' => 6, 'interview' => 3]);
+        $lateDiploma = $make('متأخر', ['diploma_date' => '2026-11-10', 'specialty_match' => 6]);
+        $low = $make('ضعيف', ['interview' => 1]);
+
+        $this->assertSame('مقصى: السن أقل من 18 سنة في تاريخ المسابقة', $minor->fresh()->resultLabel());
+        $this->assertSame('مقصى: الشهادة بعد تاريخ فتح المسابقة', $lateDiploma->fresh()->resultLabel());
+        $this->assertSame(1, $low->fresh()->rank);
+        $this->assertSame(2, $make('ثاني')->fresh()->rank);
+        $this->assertSame('ناجح', $low->fresh()->resultLabel(), 'لا توجد علامة إقصائية: الترتيب في حدود عدد المناصب');
     }
 
     public function test_editing_a_scale_recalculates_the_candidates_that_use_it(): void

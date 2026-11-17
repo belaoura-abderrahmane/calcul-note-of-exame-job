@@ -95,7 +95,9 @@ class CandidateResource extends Resource
                                         ->columnSpanFull(),
                                     TextInput::make('last_name')->label('اللقب')->required()->maxLength(100),
                                     TextInput::make('first_name')->label('الاسم')->required()->maxLength(100),
-                                    DatePicker::make('birth_date')->label('تاريخ الميلاد')->native(false)->displayFormat('d/m/Y'),
+                                    DatePicker::make('birth_date')->label('تاريخ الميلاد')->native(false)->displayFormat('d/m/Y')
+                                        ->maxDate(now()->subYears(Candidate::MINIMUM_AGE))
+                                        ->validationMessages(['before_or_equal' => 'يجب أن يكون سن المترشح '.Candidate::MINIMUM_AGE.' سنة على الأقل (المادة 75 من الأمر 06-03).']),
                                     TextInput::make('birth_place')->label('مكان الميلاد'),
                                     Select::make('gender')->label('الجنس')->options(['M' => 'ذكر', 'F' => 'أنثى'])->native(false),
                                     TextInput::make('registration_number')->label('رقم التسجيل'),
@@ -171,18 +173,9 @@ class CandidateResource extends Resource
                     ->formatStateUsing(fn ($state, Candidate $record) => number_format($state, 2).' / '.ScoreCalculator::format($record->max_total))
                     ->color(fn (Candidate $record) => $record->percentage >= 66 ? 'success' : ($record->percentage >= 50 ? 'warning' : 'danger')),
                 TextColumn::make('result')->label('النتيجة')->alignCenter()->badge()
-                    ->state(function (Candidate $record) {
-                        $p = $record->competition?->positions ?? 0;
-
-                        return match (true) {
-                            $record->rank === null => 'مقصى (غائب عن المقابلة)',
-                            $record->rank <= $p => 'ناجح',
-                            $record->rank <= 2 * $p => 'قائمة الانتظار',
-                            default => 'غير ناجح',
-                        };
-                    })
-                    ->color(fn ($state) => match ($state) {
-                        'ناجح' => 'success', 'قائمة الانتظار' => 'warning', default => 'gray'
+                    ->state(fn (Candidate $record): string => $record->resultLabel())
+                    ->color(fn ($state) => match (true) {
+                        $state === 'ناجح' => 'success', $state === 'قائمة الانتظار' => 'warning', str_starts_with($state, 'مقصى') => 'danger', default => 'gray'
                     }),
             ])
             ->defaultSort(fn (Builder $query) => $query->orderByDesc('total')->orderByRaw("COALESCE(birth_date, '9999-12-31') asc")->orderBy('id'))

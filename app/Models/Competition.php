@@ -68,9 +68,9 @@ class Competition extends Model
         $tieBreakers = $this->calculator()->tieBreakers();
         $family = array_flip(array_keys(ScoreCalculator::familyStatusOptions()));
 
-        return $this->candidates()->get()->sort(function (Candidate $a, Candidate $b) use ($tieBreakers, $family): int {
+        return $this->candidates()->get()->each->setRelation('competition', $this)->sort(function (Candidate $a, Candidate $b) use ($tieBreakers, $family): int {
             $comparisons = [
-                (int) $a->interview_absent <=> (int) $b->interview_absent,
+                (int) $a->isExcluded() <=> (int) $b->isExcluded(),
                 (float) $b->total <=> (float) $a->total,
             ];
 
@@ -115,7 +115,9 @@ class Competition extends Model
         $position = 0;
 
         return $this->rankPositionsCache = $this->rankedCandidates()
-            ->mapWithKeys(fn (Candidate $candidate): array => [$candidate->id => $candidate->interview_absent ? null : ++$position])
+            ->mapWithKeys(function (Candidate $candidate) use (&$position): array {
+                return [$candidate->id => $candidate->isExcluded() ? null : ++$position];
+            })
             ->all();
     }
 
